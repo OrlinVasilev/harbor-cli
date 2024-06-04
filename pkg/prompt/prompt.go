@@ -1,12 +1,14 @@
 package prompt
 
 import (
+	"github.com/goharbor/go-client/pkg/sdk/v2.0/models"
 	"github.com/goharbor/harbor-cli/pkg/api"
 	aview "github.com/goharbor/harbor-cli/pkg/views/artifact/select"
 	tview "github.com/goharbor/harbor-cli/pkg/views/artifact/tags/select"
 	pview "github.com/goharbor/harbor-cli/pkg/views/project/select"
 	rview "github.com/goharbor/harbor-cli/pkg/views/registry/select"
 	repoView "github.com/goharbor/harbor-cli/pkg/views/repository/select"
+	robotView "github.com/goharbor/harbor-cli/pkg/views/robot/select"
 	uview "github.com/goharbor/harbor-cli/pkg/views/user/select"
 	log "github.com/sirupsen/logrus"
 )
@@ -92,4 +94,13 @@ func GetTagNameFromUser() string {
 	}()
 
 	return <-repoName
+}
+
+func GetRobotPermissionsFromUser() []models.Permission {
+	permissions := make(chan []models.Permission)
+	go func() {
+		response, _ := api.GetPermissions()
+		robotView.ListPermissions(response.Payload, permissions)
+	}()
+	return <-permissions
 }
