@@ -13,7 +13,6 @@ var (
 	HelpStyle         = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
 	RedStyle         = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Bold(true)
 	GreenStyle          = lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Bold(true)
-	WhiteStyle          = list.DefaultStyles()
 )
 
 var BaseStyle = lipgloss.NewStyle().
