@@ -9,6 +9,14 @@ type ListFlags struct {
 	Public   bool
 }
 
+type ListQuotaFlags struct {
+	PageSize    int64
+	Page        int64
+	Sort        string
+	Reference   string
+	ReferenceID string
+}
+
 // CreateView for Registry
 type CreateRegView struct {
 	Name        string
