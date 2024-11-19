@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/goharbor/harbor-cli/cmd/harbor/root/artifact"
+	"github.com/goharbor/harbor-cli/cmd/harbor/root/instance"
 	"github.com/goharbor/harbor-cli/cmd/harbor/root/project"
 	"github.com/goharbor/harbor-cli/cmd/harbor/root/registry"
 	repositry "github.com/goharbor/harbor-cli/cmd/harbor/root/repository"
@@ -110,6 +111,7 @@ harbor help
 		user.User(),
 		artifact.Artifact(),
 		HealthCommand(),
+    instance.Instance(),
 	)
 
 	return root
