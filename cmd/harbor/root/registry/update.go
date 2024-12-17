@@ -3,6 +3,7 @@ package registry
 import (
 	"github.com/goharbor/go-client/pkg/sdk/v2.0/models"
 	"github.com/goharbor/harbor-cli/pkg/api"
+	"github.com/goharbor/harbor-cli/pkg/errors"
 	"github.com/goharbor/harbor-cli/pkg/prompt"
 	"github.com/goharbor/harbor-cli/pkg/views/registry/update"
 	log "github.com/sirupsen/logrus"
@@ -80,7 +81,7 @@ func UpdateRegistryCommand() *cobra.Command {
 			update.UpdateRegistryView(updateView)
 			err = api.UpdateRegistry(updateView, registryId)
 			if err != nil {
-				log.Errorf("failed to update registry: %v", err)
+				log.Errorf("failed to update registry: %v", errors.ErrorUpdateRegistry(err))
 				return
 			}
 		},
