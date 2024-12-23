@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/goharbor/go-client/pkg/harbor"
 	"github.com/goharbor/go-client/pkg/sdk/v2.0/client/user"
@@ -56,14 +57,71 @@ func LoginCommand() *cobra.Command {
 				loginView.Name = fmt.Sprintf("%s@%s", loginView.Username, utils.SanitizeServerAddress(loginView.Server))
 			}
 
+			// Check whether there is already a config with credentials
 			var err error
+			var config *utils.HarborConfig
+			var creds []utils.Credential
+			config, err = utils.GetCurrentHarborConfig()
+			if err != nil {
+				return fmt.Errorf("failed to get current harbor config: %s", err)
+			}
+			currentCredentialName := config.CurrentCredentialName
 
 			if loginView.Server != "" && loginView.Username != "" && loginView.Password != "" {
 				err = runLogin(loginView)
+				// check whether the user entered a new credential than already in config
+			} else if currentCredentialName != "" && loginView.Name != "" && loginView.Name != currentCredentialName {
+				var resolvedLoginView login.LoginView
+				creds = config.Credentials
+				for _, cred := range creds {
+					if cred.Name == loginView.Name {
+						resolvedLoginView = login.LoginView{
+							Server:   cred.ServerAddress,
+							Username: cred.Username,
+							Password: cred.Password,
+							Name:     cred.Name,
+						}
+					}
+				}
+				if resolvedLoginView.Server != "" && resolvedLoginView.Username != "" && resolvedLoginView.Password != "" {
+					err = runLogin(resolvedLoginView)
+				} else {
+					err = createLoginView(&loginView)
+				}
+			} else if currentCredentialName != "" && loginView.Name == "" && loginView.Server == "" && loginView.Username == "" && loginView.Password == "" {
+				var resolvedLoginView login.LoginView
+				creds := config.Credentials
+				key, err := utils.GetEncryptionKey()
+				if err != nil {
+					return fmt.Errorf("failed to get encryption key: %w", err)
+				}
+				var targetCred *utils.Credential
+				for _, cred := range creds {
+					if strings.EqualFold(cred.Name, currentCredentialName) {
+						targetCred = &cred
+						break
+					}
+				}
+				if targetCred == nil {
+					return fmt.Errorf("no matching credential found for '%s'", currentCredentialName)
+				}
+				decryptedPassword, err := utils.Decrypt(key, string(targetCred.Password))
+				if err != nil {
+					return fmt.Errorf("failed to decrypt password: %w", err)
+				}
+				resolvedLoginView = login.LoginView{
+					Server:   targetCred.ServerAddress,
+					Username: targetCred.Username,
+					Password: decryptedPassword,
+					Name:     targetCred.Name,
+				}
+				err = runLogin(resolvedLoginView)
+				if err != nil {
+					return fmt.Errorf("failed to run login: %w", err)
+				}
 			} else {
 				err = createLoginView(&loginView)
 			}
-
 			if err != nil {
 				return err
 			}
@@ -103,17 +161,31 @@ func runLogin(opts login.LoginView) error {
 		Password: opts.Password,
 	}
 	client := utils.GetClientByConfig(clientConfig)
-
 	ctx := context.Background()
 	_, err := client.User.GetCurrentUserInfo(ctx, &user.GetCurrentUserInfoParams{})
 	if err != nil {
 		return fmt.Errorf("login failed, please check your credentials: %s", err)
 	}
+	if err := utils.GenerateEncryptionKey(); err != nil {
+		fmt.Println("Encryption key already exists or could not be created:", err)
+	}
+
+	key, err := utils.GetEncryptionKey()
+	if err != nil {
+		fmt.Println("Error getting encryption key:", err)
+		return fmt.Errorf("failed to get encryption key: %s", err)
+	}
+
+	encryptedPassword, err := utils.Encrypt(key, []byte(opts.Password))
+	if err != nil {
+		fmt.Println("Error encrypting password:", err)
+		return fmt.Errorf("failed to encrypt password: %s", err)
+	}
 
 	cred := utils.Credential{
 		Name:          opts.Name,
 		Username:      opts.Username,
-		Password:      opts.Password,
+		Password:      encryptedPassword,
 		ServerAddress: opts.Server,
 	}
 	harborData, err := utils.GetCurrentHarborData()
@@ -125,7 +197,7 @@ func runLogin(opts login.LoginView) error {
 	existingCred, err := utils.GetCredentials(opts.Name)
 	if err == nil {
 		if existingCred.Username == opts.Username && existingCred.ServerAddress == opts.Server {
-			if existingCred.Password == opts.Password {
+			if existingCred.Password == encryptedPassword {
 				log.Warn("Credentials already exist in the config file. They were not added again.")
 				return nil
 			} else {
